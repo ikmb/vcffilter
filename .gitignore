@@ -1,0 +1,9 @@
+.project
+.cproject
+.settings
+*.d
+*.o
+myzcat
+vcffilter
+restorevcf
+
