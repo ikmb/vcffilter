@@ -13,7 +13,7 @@
 
 int main (int argc, char **argv) {
 
-    if (argc < 1) {
+    if (argc < 2) {
         fprintf(stderr, "Need the chromosome name as first argument!\n");
         exit(1);
     }
@@ -43,11 +43,13 @@ int main (int argc, char **argv) {
         size_t* ac = (size_t*) calloc(nalt, sizeof(size_t));
         size_t an = 0;
 
-        // first character of filter field (must be either P for PASS or L for LowXXX)
+        // filter field
         char* filter = altallend+1; // start of filter field
+        char* filterend = strchr(filter+1, '\t'); // end of filter (exclusive)
+        *filterend = '\0'; // null terminate filter string
 
         // genotypes
-        char* gtstart = filter+1; // start of genotypes (pointing at tab at beginning!)
+        char* gtstart = filterend+1; // start of genotypes (pointing at first gt char!)
         for (char* gt = gtstart; *gt != '\0'; gt++) { // until the end of the line buffer
 
             if (*gt >= '0' && *gt <= '9') { // points to valid haplotype
@@ -77,11 +79,7 @@ int main (int argc, char **argv) {
 
         printf("\t.\t"); // QUAL (set to unknown)
 
-        // FILTER
-        if (*filter == 'P') // FILTER == PASS
-            printf("PASS");
-        else
-            printf("Low");
+        fputs(filter, stdout); // FILTER
 
         // INFO
         float anf = (float) an;
@@ -93,10 +91,10 @@ int main (int argc, char **argv) {
             printf(",%lu", ac[n]); // AC of further alleles if multi-allelic
         printf(";AN=%lu", an); // AN
 
-        printf("\tGT"); // FORMAT
+        printf("\tGT\t"); // FORMAT
 
         // genotypes
-        fputs(gtstart, stdout); // rest of the line buffer containing the genotypes, starts with tab character and ends with newline!
+        fputs(gtstart, stdout); // rest of the line buffer containing the genotypes, ends with newline!
         fflush(stdout);
 
         free(ac);

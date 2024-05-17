@@ -50,14 +50,14 @@ int main (int argc, char **argv) {
             *allend = '\0'; // null terminate the allele string
             fputs(allstart, stdout); // print the alleles
 
-            // print first character of filter field (must be either P for PASS or L for LowXXX)
+            // take over filter field
             char* filter = strchr(allend+1, '\t'); // start of filter field, pointing to tab! (skipped QUAL field)
-            *(filter+2) = '\0'; // null terminate the filter field (overwrite some character following the first)
+            char* filterend = strchr(filter+1, '\t'); // end of filter field (exclusive)
+            *filterend = '\0'; // null terminate the filter field
             fputs(filter, stdout); // print filter
 
             // parse FORMAT field for GQ if desired (skip INFO)
-            char* fmt = strchr(filter+3, '\t'); // start of info
-            fmt = strchr(fmt+1, '\t') + 1; // start of format (pointing at first char in format field)
+            char* fmt = strchr(filterend+1, '\t') + 1; // start of format (skipped INFO), pointing at first char in format field!
             char* gtstart = strchr(fmt, '\t'); // start of genotypes (pointing at tab at beginning!)
             int gqidx = -1; // disabled GQ parsing until we find the GQ field
             if (parsegq) {
@@ -82,20 +82,35 @@ int main (int argc, char **argv) {
             }
 
             // genotypes (start was already searched for above) -> assuming GT is the first field!
-            int finished = 0;
-            while (!finished) {
-                char* gtallend = strchr(gtstart+1, '\t');
-                if (gtallend == NULL) { // '\t' not found -> must be at the end of the line
-                    gtallend = strchr(gtstart+1, '\0'); // points to termination char now
-                    finished = 1; // finished hereafter
-                }
-                *gtallend = ':'; // terminate gt field with ':' (just in case there are only GTs and not anything else separated by ':')
-                char* gtend = strchr(gtstart+1, ':'); // find end of GTs
-                *gtstart = '\t'; // write tab at the beginning
-                *gtend = '\0'; // null terminate GTs
-                fputs(gtstart, stdout); // print genotype (including beginning '\t')
 
-                if (gqidx >= 0) { // if we want to add the GQ field
+
+            if (gqidx < 0) { // if we do not want to add the GQ field
+                // simple and fast version as long as we are not requesting the GQ field
+                // (works only if there is additional info attached to each genotype separated by ':')
+
+                char* gtend = gtstart; // just for the beginning
+                for (; gtstart != NULL; gtstart = strchr(gtend+1, '\t')) { // find next genotypes
+                    gtend = strchr(gtstart+1,':'); // end of genotype (exclusive)
+                    *gtend = '\0'; // null terminate genotype
+                    fputs(gtstart, stdout); // print genotype (including beginning '\t')
+                }
+
+            } else { // add GQ field
+                // slower more deperate version
+
+                int finished = 0;
+                while (!finished) {
+                    char* gtallend = strchr(gtstart+1, '\t');
+                    if (gtallend == NULL) { // '\t' not found -> must be at the end of the line
+                        gtallend = strchr(gtstart+1, '\0'); // points to termination char now
+                        finished = 1; // finished hereafter
+                    }
+                    *gtallend = ':'; // terminate gt field with ':' (just in case there are only GTs and not anything else separated by ':')
+                    char* gtend = strchr(gtstart+1, ':'); // find end of GTs
+                    *gtstart = '\t'; // write tab at the beginning
+                    *gtend = '\0'; // null terminate GTs
+                    fputs(gtstart, stdout); // print genotype (including beginning '\t')
+
                     int gqidxtmp = 0; // now still pointing at GT
                     while (gqidxtmp < gqidx) { // move to GQ field
                         gtstart = gtend+1;
@@ -106,28 +121,11 @@ int main (int argc, char **argv) {
                     *(gtstart-1) = ':'; // write ':' at the beginning
                     *gtend = '\0'; // null terminate GQ
                     fputs(gtstart-1, stdout);
+
+                    gtstart = gtallend; // note, that gtstart points to a ':' or '\0' character!
                 }
 
-                gtstart = gtallend; // note, that gtstart points to a ':' or '\0' character!
             }
-
-//            // old
-//
-//            char* gtend = gtstart; // just for the beginning
-//            for (; gtstart != NULL; gtstart = strchr(gtend+1, '\t')) { // find next genotypes
-//                gtend = strchr(gtstart+1,':'); // end of genotype (exclusive)
-//                *gtend = '\0'; // null terminate genotype
-//                fputs(gtstart, stdout); // print genotype (including beginning '\t')
-//                if (gqidx >= 0) { // if we want to add the GQ field
-//                    int gqidxtmp = 0; // now still pointing at GT
-//                    while (gqidxtmp < gqidx) { // move to GQ field
-//                        gtstart = gtend+1;
-//                        gtend = strchr(gtstart, ':'); // TODO moves into next field if GQ is last field! no : at the end!
-//                        gqidxtmp++;
-//                    }
-//                }
-//            }
-
 
             printf("\n"); // newline at the end
 
