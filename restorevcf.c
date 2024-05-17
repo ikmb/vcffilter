@@ -13,16 +13,41 @@
 
 int main (int argc, char **argv) {
 
-    if (argc < 2) {
-        fprintf(stderr, "Need the chromosome name as first argument!\n");
-        exit(1);
-    }
-
     size_t len = BUFSIZE;
     const size_t lenstart = len;
     char *line = malloc(len*sizeof(char));
     size_t nline = 0;
 
+    // parse header
+    size_t nh = getline(&line, &len, stdin); // read header line
+    if (nh == -1) // file does not contain data -> finished
+        return 0;
+
+    char* chrend = strchr(line, '\t');
+    // null terminate chromosome name
+    if (chrend == NULL) { // no more arguments in vcffilter call
+        *(line+nh-1) = '\0'; // overwrite newline character in line
+    } else {
+        *chrend = '\0';
+    }
+    size_t chrlen = strlen(line); // length of chromosome name
+    char* chrom = malloc((chrlen+1)*sizeof(char));
+    strcpy(chrom, line); // copy chrom
+
+    // look for more args
+    int gq = 0;
+    char* arg = (chrend != NULL) ? chrend+1 : NULL;
+    while (arg != NULL) {
+        char* argend = strchr(arg+1, '\t');
+        if (argend != NULL) {
+            *argend = '\0';
+        }
+        if (strcmp(arg, "-gq")) // -gq option was set -> restore GQ field
+            gq = 1;
+        arg = (argend != NULL) ? argend+1 : NULL;
+    }
+
+    // parse rest of file
     while(getline(&line, &len, stdin) != -1) {
 
         // genomic position
@@ -50,9 +75,10 @@ int main (int argc, char **argv) {
 
         // genotypes
         char* gtstart = filterend+1; // start of genotypes (pointing at first gt char!)
+        int gtflag = 1; // signalizes if the current field contains genotypes or not
         for (char* gt = gtstart; *gt != '\0'; gt++) { // until the end of the line buffer
 
-            if (*gt >= '0' && *gt <= '9') { // points to valid haplotype
+            if (gtflag && *gt >= '0' && *gt <= '9') { // points to valid haplotype
                 an++; // increase allele number
                 if (*gt >= '1') {
                     int idx = *gt - '0';
@@ -62,13 +88,17 @@ int main (int argc, char **argv) {
                     }
                     ac[idx-1]++; // increase corresponding alt allele counter
                 }
+            } else if (*gt == ':') { // double colon marks the end of a genotype
+                gtflag = 0;
+            } else if (*gt == '\t') { // tab marks the end of a gt field
+                gtflag = 1;
             }
 
         }
 
         // print VCF line
 
-        fputs(argv[1], stdout); // CHROM (chromosome name)
+        fputs(chrom, stdout); // CHROM (chromosome name)
         printf("\t");
 
         fputs(line, stdout); // POS (genomic position)
@@ -91,7 +121,11 @@ int main (int argc, char **argv) {
             printf(",%lu", ac[n]); // AC of further alleles if multi-allelic
         printf(";AN=%lu", an); // AN
 
-        printf("\tGT\t"); // FORMAT
+        // FORMAT
+        if (gq)
+            printf("\tGT:GQ\t");
+        else
+            printf("\tGT\t");
 
         // genotypes
         fputs(gtstart, stdout); // rest of the line buffer containing the genotypes, ends with newline!
@@ -108,7 +142,7 @@ int main (int argc, char **argv) {
     else
         fprintf(stderr, "\n");
 
-//    fclose(fp);
+    free(chrom);
     free(line);
 
 }
