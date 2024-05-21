@@ -15,9 +15,20 @@
 
 int main (int argc, char **argv) {
 
+    // parse args
     int parsegq = 0;
-    if (argc > 1 && strcmp(argv[1], "--gq") == 0)
-        parsegq = 1;
+    int parseaa = 0;
+
+    char** cargv = argv+1; // to first arg
+    int cargc = argc-1;
+    while (cargc) {
+        if (strcmp(*cargv, "--gq") == 0)
+            parsegq = 1;
+        else if (strcmp(*cargv, "--aa") == 0)
+            parseaa = 1;
+        cargc--;
+        cargv++;
+    }
 
     size_t len = BUFSIZE;
     const size_t lenstart = len;
@@ -63,16 +74,39 @@ int main (int argc, char **argv) {
         *filterend = '\0'; // null terminate the filter field
         fputs(filter, stdout); // print filter
 
-        // parse FORMAT field for GQ if desired (skip INFO)
-        char* fmt = strchr(filterend+1, '\t') + 1; // start of format (skipped INFO), pointing at first char in format field!
-        char* gtstart = strchr(fmt, '\t'); // start of genotypes (pointing at tab at beginning!)
+        // parse INFO field for the AAScore, if desired
+        char* info = filterend+1; // beginning of INFO column
+        char* infoend = strchr(info, '\t'); // end of INFO (exclusive)
+        if (parseaa) {
+            // search for AAScore:
+            // need to print a separate tab character anyway, even if we do not find the AAScore (otherwise, restore won't work)
+            printf("\t");
+            char* aa = info;
+            char* aaend = info; // init
+            *infoend = ';'; // terminate to stop the following while loop
+            while (aaend != infoend) { // until the end of the info field
+                aaend = strchr(aa, ';'); // find end of first field
+                if (aa[0] == 'A' && aa[1] == 'A') { // assuming no other info field starts with AA
+                    *aaend = '\0'; // null terminate AAScore
+                    // print AAScore
+                    fputs(aa, stdout);
+                    break; // found, no need to search further
+                }
+                aa = aaend+1;
+            }
+            //*infoend = '\t'; // restore tab -> not necessary
+        }
+
+        // parse FORMAT field for GQ if desired
+        char* fmt = infoend+1; // start of format, pointing at first char in format field!
+        char* fmtend = strchr(fmt, '\t'); // end of format field (pointing at tab)
         int gqidx = -1; // disabled GQ parsing until we find the GQ field
         if (parsegq) {
             // search for position of GQ
             int gqidxtmp = 0;
             char* fmt2 = fmt; // init
-            *gtstart = ':'; // need to terminate the format field with ':' to be able to always end the following searches here
-            while (fmt2 != gtstart) { // until we reached the end of the format field
+            *fmtend = ':'; // need to terminate the format field with ':' to be able to always end the following searches here
+            while (fmt2 != fmtend) { // until we reached the end of the format field
                 fmt2 = strchr(fmt, ':'); // find end of format description field -> will not be NULL here as we terminated format above with ':'
                 // null terminate the actual format description field
                 *fmt2 = '\0';
@@ -85,11 +119,11 @@ int main (int argc, char **argv) {
                 gqidxtmp++;
                 fmt = fmt2+1;
             }
-            //*gtstart = '\t'; // restore tab character at the beginning of genotypes -> not necessary!
+            *fmtend = '\t'; // restore tab character at the beginning of genotypes: in the case no GQ was found, the process below awaits a tab at the beginning!
         }
 
-        // genotypes (start was already searched for above) -> assuming GT is the first field!
-
+        // genotypes -> assuming GT is the first field!
+        char* gtstart = fmtend; // tab at beginning
 
         if (gqidx < 0) { // if we do not want to add the GQ field
             // simple and fast version as long as we are not requesting the GQ field
