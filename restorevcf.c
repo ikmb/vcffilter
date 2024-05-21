@@ -22,28 +22,32 @@ int main (int argc, char **argv) {
     size_t nh = getline(&line, &len, stdin); // read header line
     if (nh == -1) // file does not contain data -> finished
         return 0;
+    // overwrite newline character at the end of the line (prevents correct parsing below)
+    *(line+nh-1) = '\0';
 
+    // search for more args (separated by tab)
     char* chrend = strchr(line, '\t');
     // null terminate chromosome name
-    if (chrend == NULL) { // no more arguments in vcffilter call
-        *(line+nh-1) = '\0'; // overwrite newline character in line
-    } else {
+    if (chrend != NULL) {
         *chrend = '\0';
     }
     size_t chrlen = strlen(line); // length of chromosome name
     char* chrom = malloc((chrlen+1)*sizeof(char));
     strcpy(chrom, line); // copy chrom
 
-    // look for more args
-    int gq = 0;
+    // parse more args
+    int parsegq = 0;
+    int parseaa = 0;
     char* arg = (chrend != NULL) ? chrend+1 : NULL;
     while (arg != NULL) {
-        char* argend = strchr(arg+1, '\t');
+        char* argend = strchr(arg, '\t');
         if (argend != NULL) {
             *argend = '\0';
         }
-        if (strcmp(arg, "-gq")) // -gq option was set -> restore GQ field
-            gq = 1;
+        if (strcmp(arg, "--gq") == 0) // --gq option was set -> restore GQ field
+            parsegq = 1;
+        if (strcmp(arg, "--aa") == 0) // --aa option was set -> restore AAScore field
+            parseaa = 1;
         arg = (argend != NULL) ? argend+1 : NULL;
     }
 
@@ -70,11 +74,19 @@ int main (int argc, char **argv) {
 
         // filter field
         char* filter = altallend+1; // start of filter field
-        char* filterend = strchr(filter+1, '\t'); // end of filter (exclusive)
+        char* filterend = strchr(filter, '\t'); // end of filter (exclusive)
         *filterend = '\0'; // null terminate filter string
 
+        // AAScore (if desired)
+        char* aa = filterend+1; // points to AAScore (if enabled) or to first genotype
+        char* aaend = filterend;
+        if (parseaa) {
+            aaend = strchr(aa, '\t'); // end of AAScore
+            *aaend = '\0'; // null terminate AAScore
+        }
+
         // genotypes
-        char* gtstart = filterend+1; // start of genotypes (pointing at first gt char!)
+        char* gtstart = aaend+1; // start of genotypes (pointing at first gt char!)
         int gtflag = 1; // signalizes if the current field contains genotypes or not
         for (char* gt = gtstart; *gt != '\0'; gt++) { // until the end of the line buffer
 
@@ -120,9 +132,13 @@ int main (int argc, char **argv) {
         for (int n = 1; n < nalt; n++)
             printf(",%lu", ac[n]); // AC of further alleles if multi-allelic
         printf(";AN=%lu", an); // AN
+        if (parseaa) { // restore AA Score
+            printf(";");
+            fputs(aa, stdout);
+        }
 
         // FORMAT
-        if (gq)
+        if (parsegq)
             printf("\tGT:GQ\t");
         else
             printf("\tGT\t");
