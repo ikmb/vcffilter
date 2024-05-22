@@ -17,15 +17,15 @@ int main (int argc, char **argv) {
 
     // parse args
     int parsegq = 0;
-    int parseaa = 0;
+//    int parseaa = 0;
 
     char** cargv = argv+1; // to first arg
     int cargc = argc-1;
     while (cargc) {
         if (strcmp(*cargv, "--gq") == 0)
             parsegq = 1;
-        else if (strcmp(*cargv, "--aa") == 0)
-            parseaa = 1;
+//        else if (strcmp(*cargv, "--aa") == 0)
+//            parseaa = 1;
         cargc--;
         cargv++;
     }
@@ -58,44 +58,60 @@ int main (int argc, char **argv) {
         // genomic position
         char* posstart = strchr(line, '\t')+1; // start of genomic position (skipped chromosome name)
         char* posend = strchr(posstart, '\t'); // end of genomic position (exclusive, points to tab char)
-        *posend = '\0'; // null terminate the pos string
-        fputs(posstart, stdout); // print pos string
+//        *posend = '\0'; // null terminate the pos string
+//        fputs(posstart, stdout); // print pos string
+
+        // variant ID
+        char* varidstart = posend+1; // start
+        char* varidend = strchr(varidstart, '\t'); // end (tab)
 
         // alleles
-        char* allstart = strchr(posend+1, '\t'); // start of wild type allele (skipped variant ID), pointing at tab character!
-        char* allend = strchr(allstart+1, '\t'); // end of first allele (exclusive)
+        char* allstart = varidend+1; // start of wild type allele
+        char* allend = strchr(allstart, '\t'); // end of first allele (exclusive)
         allend = strchr(allend+1, '\t'); // end of second allele (exclusive)
-        *allend = '\0'; // null terminate the allele string
-        fputs(allstart, stdout); // print the alleles
+//        *allend = '\0'; // null terminate the allele string
+//        fputs(allstart, stdout); // print the alleles
 
-        // take over filter field
-        char* filter = strchr(allend+1, '\t'); // start of filter field, pointing to tab! (skipped QUAL field)
-        char* filterend = strchr(filter+1, '\t'); // end of filter field (exclusive)
-        *filterend = '\0'; // null terminate the filter field
-        fputs(filter, stdout); // print filter
+        // QUAL column
+        char* qual = allend+1; // start of qual
+        char* qualend = strchr(qual, '\t'); // end of qual (tab)
+//        *qualend = '\0'; // null terminate qual field
+//        printf("\t");
+//        fputs(qual, stdout); // print qual
 
-        // parse INFO field for the AAScore, if desired
+        // FILTER column
+        char* filter = qualend+1; // start of filter field, pointing to first char
+        char* filterend = strchr(filter, '\t'); // end of filter field (tab)
+//        *filterend = '\0'; // null terminate the filter field
+//        printf("\t");
+//        fputs(filter, stdout); // print filter
+
+        // INFO column // TODO maybe add switch to be able to exclude INFO?
         char* info = filterend+1; // beginning of INFO column
         char* infoend = strchr(info, '\t'); // end of INFO (exclusive)
-        if (parseaa) {
-            // search for AAScore:
-            // need to print a separate tab character anyway, even if we do not find the AAScore (otherwise, restore won't work)
-            printf("\t");
-            char* aa = info;
-            char* aaend = info; // init
-            *infoend = ';'; // terminate to stop the following while loop
-            while (aaend != infoend) { // until the end of the info field
-                aaend = strchr(aa, ';'); // find end of first field
-                if (aa[0] == 'A' && aa[1] == 'A') { // assuming no other info field starts with AA
-                    *aaend = '\0'; // null terminate AAScore
-                    // print AAScore
-                    fputs(aa, stdout);
-                    break; // found, no need to search further
-                }
-                aa = aaend+1;
-            }
-            //*infoend = '\t'; // restore tab -> not necessary
-        }
+        *infoend = '\0'; // null terminate info field
+        fputs(posstart, stdout); // print all fields from position to INFO (inclusive)
+
+//        // parse for AAScore, if desired
+//        if (parseaa) {
+//            // search for AAScore:
+//            // need to print a separate tab character anyway, even if we do not find the AAScore (otherwise, restore won't work)
+//            printf("\t");
+//            char* aa = info;
+//            char* aaend = info; // init
+//            *infoend = ';'; // terminate to stop the following while loop
+//            while (aaend != infoend) { // until the end of the info field
+//                aaend = strchr(aa, ';'); // find end of first field
+//                if (aa[0] == 'A' && aa[1] == 'A') { // assuming no other info field starts with AA
+//                    *aaend = '\0'; // null terminate AAScore
+//                    // print AAScore
+//                    fputs(aa, stdout);
+//                    break; // found, no need to search further
+//                }
+//                aa = aaend+1;
+//            }
+//            //*infoend = '\t'; // restore tab -> not necessary
+//        }
 
         // parse FORMAT field for GQ if desired
         char* fmt = infoend+1; // start of format, pointing at first char in format field!
