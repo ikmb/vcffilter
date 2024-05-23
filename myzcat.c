@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     char* buf = malloc(BUFSIZE * sizeof(char));
 
     for (int i = 1; i < argc; i++) {
-        gzFile fin = gzopen(argv[1], "rb");
+        gzFile fin = gzopen(argv[i], "rb");
         size_t n;
         while((n = gzread(fin, buf, BUFSIZE)) > 0) {
             fwrite(buf, sizeof(char), n, stdout);
