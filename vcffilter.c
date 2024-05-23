@@ -47,9 +47,9 @@ int main (int argc, char **argv) {
         }
     }
 
-    // print <args> after chromosome
+    // print <args> after chromosome, using ';' as separator
     for (int i=1; i < argc; i++) {
-        printf("\t%s", argv[i]);
+        printf(";%s", argv[i]);
     }
     printf("\n");
 

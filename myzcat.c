@@ -18,15 +18,23 @@
 int main(int argc, char **argv)
 {
     if(argc <= 1) { // <= (number of expected CLI arguments)
-        fprintf(stderr, "Usage: %s <input file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <input files>\n", argv[0]);
         return -1;
     }
-    gzFile fin = gzopen(argv[1], "rb");
+
     char* buf = malloc(BUFSIZE * sizeof(char));
-    size_t n;
-    while((n = gzread(fin, buf, BUFSIZE)) > 0) {
-        fwrite(buf, sizeof(char), n, stdout);
+
+    for (int i = 1; i < argc; i++) {
+        gzFile fin = gzopen(argv[1], "rb");
+        size_t n;
+        while((n = gzread(fin, buf, BUFSIZE)) > 0) {
+            fwrite(buf, sizeof(char), n, stdout);
+        }
+        gzclose(fin);
     }
+
+    free(buf);
+
     return 0;
 }
 

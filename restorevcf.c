@@ -54,7 +54,7 @@ int main (int argc, char **argv) {
 //    int parseaa = 0;
     char* arg = (chrend != NULL) ? chrend+1 : NULL;
     while (arg != NULL) {
-        char* argend = strchr(arg, '\t');
+        char* argend = strchr(arg, ';'); // separator for the args in the header is the semicolon char
         if (argend != NULL) {
             *argend = '\0';
         }
@@ -71,7 +71,7 @@ int main (int argc, char **argv) {
         // genomic position
         char* pos = line;
         char* posend = strchr(pos, '\t'); // end of genomic position (exclusive, points to tab char)
-        if (posend == NULL) // no tab char -> invalid line (can happen for the last line when it contains only a newline character) -> skip
+        if (posend == NULL) // no tab char -> invalid line (can happen for the last line when it contains only a newline character, or when concatenating files the header of the new file) -> skip
             continue;
 //        *posend = '\0'; // null terminate the pos string
 
