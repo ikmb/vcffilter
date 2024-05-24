@@ -36,8 +36,9 @@ int main (int argc, char **argv) {
     size_t nline = 0;
 
     // skip header and print chromosome to output
-    while(getline(&line, &len, stdin) != -1) {
-        if (*line != '#') { // just found the first line after the header
+    size_t nh;
+    while((nh = getline(&line, &len, stdin)) != -1) {
+        if (nh > 0 && *line != '#') { // just found the first line after the header
             // copy chromosome name
             char* chromend = strchr(line, '\t');
             *chromend = '\0'; // null terminate chromosome name
@@ -45,6 +46,11 @@ int main (int argc, char **argv) {
             *chromend = '\t'; // restore tab character for further processing below
             break;
         }
+    }
+
+    // check if there was a line after the header
+    if (nh == 0 || nh == (size_t)-1) { // file does not contain data (empty or header only)
+        goto finish;
     }
 
     // print <args> after chromosome, using ';' as separator
@@ -189,6 +195,7 @@ int main (int argc, char **argv) {
 
     } while(getline(&line, &len, stdin) != -1);
 
+finish:
     fprintf(stderr, "Number of variants: %lu\n", nline);
     fprintf(stderr, "Line buffer size: %lu", len);
     if (len != lenstart)
