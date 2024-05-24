@@ -34,8 +34,10 @@ int main (int argc, char **argv) {
 
     // parse header
     size_t nh = getline(&line, &len, stdin); // read header line
-    if (nh == -1) // file does not contain data -> finished
-        return 0;
+    if (nh == 0 || nh == (size_t)-1) { // file does not contain data -> finished
+        goto finish;
+    }
+
     // overwrite newline character at the end of the line (prevents correct parsing below)
     *(line+nh-1) = '\0';
 
@@ -215,6 +217,9 @@ int main (int argc, char **argv) {
         nline++;
     }
 
+    free(chrom);
+
+finish:
     fprintf(stderr, "Number of lines: %lu\n", nline);
     fprintf(stderr, "Line buffer size: %lu", len);
     if (len != lenstart)
@@ -222,7 +227,6 @@ int main (int argc, char **argv) {
     else
         fprintf(stderr, "\n");
 
-    free(chrom);
     free(line);
 
 }
