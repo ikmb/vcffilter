@@ -27,6 +27,26 @@ int ptrcmp (const void* a, const void* b) {
 
 int main (int argc, char **argv) {
 
+    // parse args
+    int filterpass = 0;
+    int rminfo = 0;
+    int keepaa = 0;
+
+    char** cargv = argv+1; // to first arg
+    int cargc = argc-1;
+    while (cargc) {
+        if (strcmp(*cargv, "--filterpass") == 0)
+            filterpass = 1;
+        else if (strcmp(*cargv, "--rminfo") == 0)
+            rminfo = 1;
+        else if (strcmp(*cargv, "--keepaa") == 0)
+            keepaa = 1;
+        else
+            fprintf(stderr, "WARNING! Unrecognized option %s.", *cargv);
+        cargc--;
+        cargv++;
+    }
+
     size_t len = BUFSIZE;
     const size_t lenstart = len;
     char *line = malloc(len*sizeof(char));
@@ -53,7 +73,6 @@ int main (int argc, char **argv) {
 
     // parse more args
     int parsegq = 0;
-//    int parseaa = 0;
     char* arg = (chrend != NULL) ? chrend+1 : NULL;
     while (arg != NULL) {
         char* argend = strchr(arg, ';'); // separator for the args in the header is the semicolon char
@@ -62,10 +81,12 @@ int main (int argc, char **argv) {
         }
         if (strcmp(arg, "--gq") == 0) // --gq option was set -> restore GQ field
             parsegq = 1;
-//        if (strcmp(arg, "--aa") == 0) // --aa option was set -> restore AAScore field
-//            parseaa = 1;
         arg = (argend != NULL) ? argend+1 : NULL;
     }
+
+    // reserve space for allele counters
+    int nac = 10;
+    size_t* ac = (size_t*) malloc(nac * sizeof(size_t));
 
     // parse rest of file
     while(getline(&line, &len, stdin) != -1) {
@@ -95,7 +116,12 @@ int main (int argc, char **argv) {
         *altallend = '\t'; // restore tab
 
         // initialize allele counters
-        size_t* ac = (size_t*) calloc(nalt, sizeof(size_t));
+        if (nalt > nac) {
+            ac = (size_t*) realloc(ac, nalt * sizeof(size_t));
+            nac = nalt;
+        }
+        for (size_t i = 0; i < nalt; i++)
+            ac[i] = 0;
         size_t an = 0;
 
         // qual field
@@ -106,7 +132,12 @@ int main (int argc, char **argv) {
         // filter field
         char* filter = qualend+1; // start of filter field
         char* filterend = strchr(filter, '\t'); // end of filter (exclusive)
-//        *filterend = '\0'; // null terminate
+        if (filterpass) {
+            *filterend = '\0'; // null terminate for comparison
+            if (strcmp(filter, "PASS") != 0) // not passed!
+                continue; // skip this line
+            *filterend = '\t'; // restore tab char
+        }
 
         // info
         char* info = filterend+1; // start
@@ -154,18 +185,10 @@ int main (int argc, char **argv) {
         *filterend = '\0'; // null terminate filter field, as we are going to modify the following INFO fields
         fputs(pos, stdout);
 
-//        printf("\t.\t"); // ID (set to unknown)
-//
-//        fputs(posend+1, stdout); // REF ALT (alleles)
-//
-////        printf("\t.\t"); // QUAL (set to unknown)
-//        printf("\t");
-//        fputs(qual, stdout);
-//        printf("\t");
-//
-//        fputs(filter, stdout); // FILTER
-
         // INFO
+        *infoend = '\0'; // null terminate INFO field
+
+        // print self generated values
         float anf = (float) an;
         printf("\tAF=%.8f", ac[0]/anf); // AF of first alt allele
         for (int n = 1; n < nalt; n++)
@@ -174,34 +197,44 @@ int main (int argc, char **argv) {
         for (int n = 1; n < nalt; n++)
             printf(",%lu", ac[n]); // AC of further alleles if multi-allelic
         printf(";AN=%lu", an); // AN
-//        if (parseaa) { // restore AA Score
-//            printf(";");
-//            fputs(aa, stdout);
-//        }
-        printf(";");
-        *infoend = '\0'; // null terminate INFO field
 
-        // find original values of the replaced ones above -> prefix them with "Org"
-        char* org[3];
-        org[0] = findInfoField(info, "AF=");
-        org[1] = findInfoField(info, "AC=");
-        org[2] = findInfoField(info, "AN=");
-        // sort...
-        qsort(org, 3, sizeof(char*), ptrcmp);
+        // original values
+        if (!rminfo) { // take over all original values
+            if (info != infoend) { // info is not empty
+                printf(";");
 
-        // print INFO and prefix above fields with 'Org'
-        const char repl[] = "OrgA"; // we add the 'A' here, as we replace it below with the null terminator...
-        char* infoit = info;
-        for (int i = 0; i < 3; i++) {
-            if (org[i] != NULL) {
-                *(org[i]) = '\0'; // temporarily add null terminator (luckily, we know that we replace an 'A' here...)
+                // find original values of the replaced ones above -> prefix them with "Org"
+                char* org[3];
+                org[0] = findInfoField(info, "AF=");
+                org[1] = findInfoField(info, "AC=");
+                org[2] = findInfoField(info, "AN=");
+                // sort...
+                qsort(org, 3, sizeof(char*), ptrcmp);
+
+                // print INFO and prefix above fields with 'Org'
+                const char repl[] = "OrgA"; // we add the 'A' here, as we replace it below with the null terminator...
+                char* infoit = info;
+                for (int i = 0; i < 3; i++) {
+                    if (org[i] != NULL) {
+                        *(org[i]) = '\0'; // temporarily add null terminator (luckily, we know that we replace an 'A' here...)
+                        fputs(infoit, stdout);
+                        fputs(repl, stdout);
+                        infoit = org[i]+1; // next char after the null terminator
+                    }
+                }
+                // print remainder
                 fputs(infoit, stdout);
-                fputs(repl, stdout);
-                infoit = org[i]+1; // next char after the null terminator
+            }
+        } else if (keepaa) { // remove all original, but keep AAScore
+            char* aa = findInfoField(info, "AAScore=");
+            if (aa != NULL) { // found AAScore
+                char* aaend = strchr(aa, ';'); // will be found or is already at the end
+                if (aaend != NULL)
+                    *aaend = '\0'; // null terminate AAScore
+                printf(";");
+                fputs(aa, stdout);
             }
         }
-        // print remainder
-        fputs(infoit, stdout);
 
         // FORMAT
         if (parsegq)
@@ -213,14 +246,14 @@ int main (int argc, char **argv) {
         fputs(gtstart, stdout); // rest of the line buffer containing the genotypes, ends with newline!
         fflush(stdout);
 
-        free(ac);
         nline++;
     }
 
+    free(ac);
     free(chrom);
 
 finish:
-    fprintf(stderr, "Number of lines: %lu\n", nline);
+    fprintf(stderr, "Number of variants: %lu\n", nline);
     fprintf(stderr, "Line buffer size: %lu", len);
     if (len != lenstart)
         fprintf(stderr, " -> changed!!\n");
