@@ -3,7 +3,6 @@
 .settings
 *.d
 *.o
-myzcat
-vcffilter
-restorevcf
-
+Release/myzcat
+Release/vcffilter
+restorevcf/Release/restorevcf
