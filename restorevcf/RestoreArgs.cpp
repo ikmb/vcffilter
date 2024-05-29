@@ -108,7 +108,8 @@ RestoreArgs::RestoreArgs(int argc, char *argv[]) :
     ("fpass", "returns only variants with FILTER == PASS")
     ("rminfo", "removes all INFO fields (but still creates AF,AC,AN)")
     ("keepaa", "if present the INFO field AAScore will be kept when removing the rest with --rminfo")
-    ("macfilter", value<size_t>(&macfilter)->default_value(0), "only variants with a minor allele count greater or equal to the defined value will be returned")
+    ("macfilter", value<size_t>(&macfilter)->default_value(0), "only variants with a minor allele count >= value are returned")
+    ("aafilter", value<float>(&aafilter)->default_value(0.0), "only variants with an AAScore >= value are returned")
     ;
 
     opts_hidden.add_options()

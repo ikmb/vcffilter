@@ -40,12 +40,14 @@ int main (int argc, char **argv) {
     bool rminfo = args.rminfo;
     bool keepaa = args.keepaa;
     size_t macfilter = args.macfilter;
+    float aafilter = args.aafilter;
 
     cerr << "Args:" << endl;
     cerr << "  fpass:      " << fpass << endl;
     cerr << "  rminfo:     " << rminfo << endl;
     cerr << "  keepaa:     " << keepaa << endl;
     cerr << "  macfilter:  " << macfilter << endl;
+    cerr << "  aafilter:   " << aafilter << endl;
 
     size_t len = BUFSIZE;
     const size_t lenstart = len;
@@ -127,16 +129,45 @@ int main (int argc, char **argv) {
             // filter field
             char* filter = qualend+1; // start of filter field
             char* filterend = strchr(filter, '\t'); // end of filter (exclusive)
+            *filterend = '\0'; // null terminate filter field, as we are going to modify the following INFO fields for printing
+
+            // FILTER == PASS filter
             if (fpass) {
-                *filterend = '\0'; // null terminate for comparison
                 if (strcmp(filter, "PASS") != 0) // not passed!
                     continue; // skip this line
-                *filterend = '\t'; // restore tab char
             }
 
             // info
             char* info = filterend+1; // start
             char* infoend = strchr(info, '\t'); // end
+            *infoend = '\0'; // null terminate INFO field
+
+            // AAScore filter
+            if (aafilter > 0) {
+                bool pass = false;
+                char* aa = findInfoField(info, "AAScore=");
+                aa += 8; // forward to beginning of first value
+
+                // iterate over all alt alleles
+                for (size_t n = 0; n < nalt; n++) {
+                    char* aaend;
+                    if (n < nalt-1) { // more than one alt allele
+                        aaend = strchr(aa, ','); // will be found in a proper VCF
+                    } else { // last alt allele
+                        aaend = strchr(aa, ';'); // end of AAScore field or null if at the end of INFO
+                        if (aaend == NULL)
+                            aaend = infoend;
+                    }
+                    float aav = stof(string(aa, aaend - aa));
+                    if (aav >= aafilter) {
+                        pass = true;
+                        break;
+                    }
+                    aa = aaend + 1; // beginning of next value
+                }
+                if (!pass)
+                    continue; // skip this line
+            }
 
             // genotypes
             char* gtstart = infoend+1; // start of genotypes (pointing at first gt char!)
@@ -163,20 +194,20 @@ int main (int argc, char **argv) {
 
             // MAC filter
             if (macfilter) {
-                int pass = 0;
+                bool pass = false;
                 size_t mac = 0;
+                // iterate over all alt alleles
                 for (size_t n = 0; n < nalt; n++) {
                     // check minor(!) allele count
                     mac = (ac[n] <= an/2) ? ac[n] : an - ac[n];
                     if (mac >= (size_t) macfilter) {
-                        pass = 1;
+                        pass = true;
                         break;
                     }
                 }
-                if (!pass) // not passed
+                if (!pass)
                     continue; // skip this line
             }
-
 
             // print VCF line
 
@@ -184,12 +215,9 @@ int main (int argc, char **argv) {
             cout << chrom << "\t";
 
             // POS, ID, alleles, QUAL, FILTER
-            *filterend = '\0'; // null terminate filter field, as we are going to modify the following INFO fields
             cout << pos;
 
             // INFO
-            *infoend = '\0'; // null terminate INFO field
-
             // print self generated values
             float anf = (float) an;
             printf("\tAF=%.8f", ac[0]/anf); // AF of first alt allele

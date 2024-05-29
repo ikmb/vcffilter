@@ -66,6 +66,7 @@ public:
     int rminfo = 0;
     int keepaa = 0;
     size_t macfilter = 0;
+    float aafilter = 0;
 
     bool debug = false;
 
