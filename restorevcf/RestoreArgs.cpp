@@ -107,9 +107,11 @@ RestoreArgs::RestoreArgs(int argc, char *argv[]) :
     ("version,v", "prints version information and exits")
     ("fpass", "returns only variants with FILTER == PASS")
     ("rminfo", "removes all INFO fields (but still creates AF,AC,AN)")
-    ("keepaa", "if present the INFO field AAScore will be kept when removing the rest with --rminfo")
+    ("keepaa", "if present, the INFO field AAScore will be kept when removing the rest with --rminfo")
     ("macfilter", value<size_t>(&macfilter)->default_value(0), "only variants with a minor allele count >= value are returned")
     ("aafilter", value<float>(&aafilter)->default_value(0.0), "only variants with an AAScore >= value are returned")
+    ("missfilter", value<float>(&missfilter)->default_value(0.0), "only variants with a genotype missingness rate < value are returned")
+    ("filterunknown", "removes unknown alleles (named \"*\")")
     ;
 
     opts_hidden.add_options()
@@ -144,6 +146,8 @@ void RestoreArgs::parseVars() {
         rminfo = true;
     if (vars.count("keepaa"))
         keepaa = true;
+    if (vars.count("filterunknown"))
+        filterunk = true;
 
 }
 

@@ -62,11 +62,13 @@ public:
 
     RestoreArgs(RestoreArgs&& other) = default;
 
-    int fpass = 0;
-    int rminfo = 0;
-    int keepaa = 0;
+    bool fpass = false;
+    bool rminfo = false;
+    bool keepaa = false;
     size_t macfilter = 0;
     float aafilter = 0;
+    float missfilter = 0;
+    bool filterunk = false;
 
     bool debug = false;
 

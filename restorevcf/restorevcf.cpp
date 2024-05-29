@@ -41,18 +41,23 @@ int main (int argc, char **argv) {
     bool keepaa = args.keepaa;
     size_t macfilter = args.macfilter;
     float aafilter = args.aafilter;
+    float missfilter = args.missfilter;
+    bool filterunk = args.filterunk;
 
     cerr << "Args:" << endl;
-    cerr << "  fpass:      " << fpass << endl;
-    cerr << "  rminfo:     " << rminfo << endl;
-    cerr << "  keepaa:     " << keepaa << endl;
-    cerr << "  macfilter:  " << macfilter << endl;
-    cerr << "  aafilter:   " << aafilter << endl;
+    cerr << "  fpass:         " << fpass << endl;
+    cerr << "  rminfo:        " << rminfo << endl;
+    cerr << "  keepaa:        " << keepaa << endl;
+    cerr << "  macfilter:     " << macfilter << endl;
+    cerr << "  aafilter:      " << aafilter << endl;
+    cerr << "  missfilter:    " << missfilter << endl;
+    cerr << "  filterunknown: " << filterunk << endl;
 
     size_t len = BUFSIZE;
     const size_t lenstart = len;
     char* line = (char*) malloc(len*sizeof(char));
     size_t nline = 0;
+    size_t nskip = 0;
 
     // parse header
     size_t nh = getline(&line, &len, stdin); // read header line
@@ -94,7 +99,6 @@ int main (int argc, char **argv) {
             char* posend = strchr(pos, '\t'); // end of genomic position (exclusive, points to tab char)
             if (posend == NULL) // no tab char -> invalid line (can happen for the last line when it contains only a newline character, or when concatenating files the header of the new file) -> skip
                 continue;
-    //        *posend = '\0'; // null terminate the pos string
 
             // variant ID
             char* varid = posend+1;
@@ -103,15 +107,27 @@ int main (int argc, char **argv) {
             // alleles
             char* refall = varidend+1;
             char* refallend = strchr(refall, '\t'); // end of first allele (exclusive)
-            char* altall = refallend+1;
+//            char* altall = refallend+1;
             char* altallend = strchr(refallend+1, '\t'); // end of alternative alleles (exclusive)
 
-            // count number of alternative alles:
+            // count number of alternative alles + check if unknown
             size_t nalt = 0;
+            int unkidx = -1; // points to the alt allele which is unknown (-1 if none)
             *altallend = '\0'; // null terminate the allele string (to stop following loop)
-            for (char* t = altall; t != NULL; t = strchr(t+1, ',')) // will stop at altallend as we have null terminated the buffer there
+            for (char* t = refallend; t != NULL; t = strchr(t+1, ',')) { // will stop at altallend as we have null terminated the buffer there
+                // t always points to the delimiter before the current allele (also at the beginning)!
+                if (filterunk && *(t+1) == '*') { // found unknown allele
+                    unkidx = nalt;
+                }
                 nalt++;
+            }
             *altallend = '\t'; // restore tab
+
+            // filter single unknown "*" alleles
+            if (unkidx >= 0 && nalt == 1) { // filter is activated and an unknown allele was found which is the only alt allele
+                nskip++;
+                continue; // skip this line
+            } // else if there was an unknown allele together in a multi-allelic context, we don't filter it yet
 
             // initialize allele counters
             if (nalt > nac) {
@@ -133,8 +149,10 @@ int main (int argc, char **argv) {
 
             // FILTER == PASS filter
             if (fpass) {
-                if (strcmp(filter, "PASS") != 0) // not passed!
+                if (strcmp(filter, "PASS") != 0) { // not passed!
+                    nskip++;
                     continue; // skip this line
+                }
             }
 
             // info
@@ -165,13 +183,16 @@ int main (int argc, char **argv) {
                     }
                     aa = aaend + 1; // beginning of next value
                 }
-                if (!pass)
+                if (!pass) {
+                    nskip++;
                     continue; // skip this line
+                }
             }
 
             // genotypes
             char* gtstart = infoend+1; // start of genotypes (pointing at first gt char!)
             int gtflag = 1; // signalizes if the current field contains genotypes or not
+            size_t ngtmiss = 0; // missing alleles counter
             for (char* gt = gtstart; *gt != '\0'; gt++) { // until the end of the line buffer
 
                 if (gtflag && *gt >= '0' && *gt <= '9') { // points to valid haplotype
@@ -184,6 +205,8 @@ int main (int argc, char **argv) {
                         }
                         ac[idx-1]++; // increase corresponding alt allele counter
                     }
+                } else if (gtflag && *gt == '.') { // missing gt
+                    ngtmiss++;
                 } else if (*gt == ':') { // double colon marks the end of a genotype
                     gtflag = 0;
                 } else if (*gt == '\t') { // tab marks the end of a gt field
@@ -205,8 +228,18 @@ int main (int argc, char **argv) {
                         break;
                     }
                 }
-                if (!pass)
+                if (!pass) {
+                    nskip++;
                     continue; // skip this line
+                }
+            }
+
+            // GT missingness filter
+            if (missfilter > 0) {
+                if (ngtmiss / (float) an >= missfilter) {
+                    nskip++;
+                    continue; // skip this line
+                }
             }
 
             // print VCF line
@@ -280,7 +313,8 @@ int main (int argc, char **argv) {
 
     } // END contains data
 
-    cerr << "Number of variants: " << nline << endl;
+    cerr << "Number of printed variants: " << nline << endl;
+    cerr << "Number of skipped variants: " << nskip << endl;
     cerr << "Line buffer size: " << len;
     if (len != lenstart)
         cerr << " -> changed!!";
