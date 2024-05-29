@@ -6,6 +6,7 @@
  */
 
 #include <iostream>
+#include <string>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
@@ -40,9 +41,6 @@ int main (int argc, char **argv) {
     bool keepaa = args.keepaa;
     size_t macfilter = args.macfilter;
 
-    char** cargv = argv+1; // to first arg
-    int cargc = argc-1;
-
     cerr << "Args:" << endl;
     cerr << "  fpass:      " << fpass << endl;
     cerr << "  rminfo:     " << rminfo << endl;
@@ -67,12 +65,10 @@ int main (int argc, char **argv) {
         if (chrend != NULL) {
             *chrend = '\0';
         }
-        size_t chrlen = strlen(line); // length of chromosome name
-        char* chrom = (char*) malloc((chrlen+1)*sizeof(char));
-        strcpy(chrom, line); // copy chrom
+        string chrom(line); // copy chromosome name
 
         // parse more args
-        int parsegq = 0;
+        bool parsegq = false;
         char* arg = (chrend != NULL) ? chrend+1 : NULL;
         while (arg != NULL) {
             char* argend = strchr(arg, ';'); // separator for the args in the header is the semicolon char
@@ -80,7 +76,7 @@ int main (int argc, char **argv) {
                 *argend = '\0';
             }
             if (strcmp(arg, "--gq") == 0) // --gq option was set -> restore GQ field
-                parsegq = 1;
+                parsegq = true;
             arg = (argend != NULL) ? argend+1 : NULL;
         }
 
@@ -127,7 +123,6 @@ int main (int argc, char **argv) {
             // qual field
             char* qual = altallend+1; // start
             char* qualend = strchr(qual, '\t'); // end (exclusive)
-    //        *qualend = '\0'; // null terminate
 
             // filter field
             char* filter = qualend+1; // start of filter field
@@ -142,15 +137,6 @@ int main (int argc, char **argv) {
             // info
             char* info = filterend+1; // start
             char* infoend = strchr(info, '\t'); // end
-    //        *infoend = '\0'; // null terminate
-
-    //        // AAScore (if desired)
-    //        char* aa = filterend+1; // points to AAScore (if enabled) or to first genotype
-    //        char* aaend = filterend;
-    //        if (parseaa) {
-    //            aaend = strchr(aa, '\t'); // end of AAScore
-    //            *aaend = '\0'; // null terminate AAScore
-    //        }
 
             // genotypes
             char* gtstart = infoend+1; // start of genotypes (pointing at first gt char!)
@@ -195,12 +181,11 @@ int main (int argc, char **argv) {
             // print VCF line
 
             // CHROM (chromosome name)
-            fputs(chrom, stdout);
-            printf("\t");
+            cout << chrom << "\t";
 
             // POS, ID, alleles, QUAL, FILTER
             *filterend = '\0'; // null terminate filter field, as we are going to modify the following INFO fields
-            fputs(pos, stdout);
+            cout << pos;
 
             // INFO
             *infoend = '\0'; // null terminate INFO field
@@ -218,7 +203,7 @@ int main (int argc, char **argv) {
             // original values
             if (!rminfo) { // take over all original values
                 if (info != infoend) { // info is not empty
-                    printf(";");
+                    cout << ";";
 
                     // find original values of the replaced ones above -> prefix them with "Org"
                     char* org[3];
@@ -229,18 +214,16 @@ int main (int argc, char **argv) {
                     qsort(org, 3, sizeof(char*), ptrcmp);
 
                     // print INFO and prefix above fields with 'Org'
-                    const char repl[] = "OrgA"; // we add the 'A' here, as we replace it below with the null terminator...
                     char* infoit = info;
                     for (int i = 0; i < 3; i++) {
                         if (org[i] != NULL) {
                             *(org[i]) = '\0'; // temporarily add null terminator (luckily, we know that we replace an 'A' here...)
-                            fputs(infoit, stdout);
-                            fputs(repl, stdout);
+                            cout << infoit << "OrgA"; // we add the 'A' here, as we replaced it above with the null terminator...
                             infoit = org[i]+1; // next char after the null terminator
                         }
                     }
                     // print remainder
-                    fputs(infoit, stdout);
+                    cout << infoit;
                 }
             } else if (keepaa) { // remove all original, but keep AAScore
                 char* aa = findInfoField(info, "AAScore=");
@@ -248,26 +231,24 @@ int main (int argc, char **argv) {
                     char* aaend = strchr(aa, ';'); // will be found or is already at the end
                     if (aaend != NULL)
                         *aaend = '\0'; // null terminate AAScore
-                    printf(";");
-                    fputs(aa, stdout);
+                    cout << ";" << aa;
                 }
             }
 
             // FORMAT
             if (parsegq)
-                printf("\tGT:GQ\t");
+                cout << "\tGT:GQ\t";
             else
-                printf("\tGT\t");
+                cout << "\tGT\t";
 
             // genotypes
-            fputs(gtstart, stdout); // rest of the line buffer containing the genotypes, ends with newline!
-            fflush(stdout);
+            cout << gtstart; // rest of the line buffer containing the genotypes, ends with newline!
 
             nline++;
         }
 
+        cout << flush;
         free(ac);
-        free(chrom);
 
     } // END contains data
 
