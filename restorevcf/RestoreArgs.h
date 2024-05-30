@@ -69,6 +69,7 @@ public:
     float aafilter = 0;
     float missfilter = 0;
     bool filterunk = false;
+    bool splitma = false;
 
     bool debug = false;
 

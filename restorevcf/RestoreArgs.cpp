@@ -112,6 +112,7 @@ RestoreArgs::RestoreArgs(int argc, char *argv[]) :
     ("aafilter", value<float>(&aafilter)->default_value(0.0), "only variants with an AAScore >= value are returned")
     ("missfilter", value<float>(&missfilter)->default_value(0.0), "only variants with a genotype missingness rate < value are returned")
     ("filterunknown", "removes unknown alleles (named \"*\")")
+    ("splitma", "splits multi-allelic variants into several bi-allelic ones, filling up with the reference '0'. Note, that this implies --rminfo.")
     ;
 
     opts_hidden.add_options()
@@ -148,6 +149,13 @@ void RestoreArgs::parseVars() {
         keepaa = true;
     if (vars.count("filterunknown"))
         filterunk = true;
+    if (vars.count("splitma")) {
+        splitma = true;
+        rminfo = true; // this is automatically set when --splitma is used
+    }
+    // if we do not remove INFO, disable explicit keep of AAScore
+    if (!rminfo)
+        keepaa = false;
 
 }
 
