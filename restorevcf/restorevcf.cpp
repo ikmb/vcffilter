@@ -214,7 +214,7 @@ int main (int argc, char **argv) {
                     float aav = stof(string(aatmp, aaend - aatmp));
                     if (aav >= aafilter) { // value above threshold
                         pass = true;
-                        if (!keepaa) // if we do not keepaa explicitly, we can stop here
+                        if (!keepaa && !masplitnow) // if we do not keepaa explicitly and if we do not split MA's, we can stop here
                             break;
                     } else if (masplitnow && aafilter > 0) { // value below threshold and we are splitting MA here and a filter is active
                         // mark this allele to be filtered later
@@ -266,8 +266,10 @@ int main (int argc, char **argv) {
                                 magtparts[0].push_back(gt+1);
                                 size_t pos = gt - gtstart;
                                 for (size_t a = 1; a < nalt; a++) {
-                                    *(magts[a]+pos) = '\0';
-                                    magtparts[a].push_back(magts[a]+pos+1);
+                                    if (!maaltfilter[a]) {
+                                        *(magts[a]+pos) = '\0';
+                                        magtparts[a].push_back(magts[a]+pos+1);
+                                    }
                                 }
                             }
                         }
