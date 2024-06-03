@@ -40,6 +40,12 @@ using namespace bpo;
     // set variables
     args.parseVars();
 
+    // mac and maf filter cannot be used together
+    if (args.macfilter && args.maffilter > 0) {
+        cerr << "ERROR: MAC and MAF filter cannot be used together." << endl;
+        exit(EXIT_FAILURE);
+    }
+
     return args;
 }
 
@@ -109,6 +115,7 @@ RestoreArgs::RestoreArgs(int argc, char *argv[]) :
     ("rminfo", "removes all INFO fields (but still creates AF,AC,AN)")
     ("keepaa", "if present, the INFO field AAScore will be kept when removing the rest with --rminfo")
     ("macfilter", value<size_t>(&macfilter)->default_value(0), "only variants with a minor allele count >= value are returned")
+    ("maffilter", value<float>(&maffilter)->default_value(0.0), "only variants with a minor allele frequency >= value are returned")
     ("aafilter", value<float>(&aafilter)->default_value(0.0), "only variants with an AAScore >= value are returned")
     ("missfilter", value<float>(&missfilter)->default_value(0.0), "only variants with a genotype missingness rate < value are returned")
     ("filterunknown", "removes unknown alleles (named \"*\")")

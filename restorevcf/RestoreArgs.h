@@ -66,6 +66,7 @@ public:
     bool rminfo = false;
     bool keepaa = false;
     size_t macfilter = 0;
+    float maffilter = 0;
     float aafilter = 0;
     float missfilter = 0;
     bool filterunk = false;

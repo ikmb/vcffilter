@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 #include "RestoreArgs.h"
 
@@ -40,6 +41,7 @@ int main (int argc, char **argv) {
     bool rminfo = args.rminfo;
     bool keepaa = args.keepaa;
     size_t macfilter = args.macfilter;
+    float maffilter = args.maffilter;
     float aafilter = args.aafilter;
     float missfilter = args.missfilter;
     bool filterunk = args.filterunk;
@@ -50,6 +52,7 @@ int main (int argc, char **argv) {
     cerr << "  rminfo:        " << rminfo << endl;
     cerr << "  keepaa:        " << keepaa << endl;
     cerr << "  macfilter:     " << macfilter << endl;
+    cerr << "  maffilter:     " << maffilter << endl;
     cerr << "  aafilter:      " << aafilter << endl;
     cerr << "  missfilter:    " << missfilter << endl;
     cerr << "  filterunknown: " << filterunk << endl;
@@ -308,15 +311,19 @@ int main (int argc, char **argv) {
                 }
             }
 
-            // MAC filter
-            if (macfilter) {
+            // MAC/MAF filter
+            if (macfilter || maffilter > 0) {
                 bool pass = false;
                 size_t mac = 0;
+                size_t minmac = macfilter;
+                if (maffilter > 0) { // set min MAC according to MAF filter
+                    minmac = (size_t) ceil(maffilter * an);
+                }
                 // iterate over all alt alleles
                 for (size_t n = 0; n < nalt; n++) {
                     // check minor(!) allele count
                     mac = (ac[n] <= an/2) ? ac[n] : an - ac[n];
-                    if (mac >= (size_t) macfilter) {
+                    if (mac >= (size_t) minmac) {
                         pass = true;
                         if (!masplitnow) // if we are not splitting MA's here, we can stop
                             break;
