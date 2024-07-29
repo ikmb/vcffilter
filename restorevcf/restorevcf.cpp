@@ -6,6 +6,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
@@ -29,7 +30,33 @@ char* findInfoField(char* info, const char* query) {
 }
 
 int ptrcmp (const void* a, const void* b) {
-   return ( *(char**)a - *(char**)b );
+    return ( *(char**)a - *(char**)b );
+}
+
+// deletes all characters from gt backwards until the hap separator '/' or '|' (inclusive)
+// by setting them to '\0'.
+// returns position of last deleted char
+char* delete2ndhap(char* gt) {
+    char* tmp = gt;
+    for (; *tmp != '/' && *tmp != '|'; tmp--) {
+        *tmp = '\0';
+    }
+    *tmp = '\0'; // delete separator '/' or '|'
+    return tmp;
+}
+
+// starts deleting the haplotype first by iterating backwards starting from "gt"
+// and setting the chars to '\0'.
+// when the end of a genotype is found the '.' is set at the last field which was deleted before
+// a sequence of '\0' is ignored when detected in the beginning (so, the first chars to test)
+// the end of a gt field is determined by a change from a digit char to something else
+void setmissinghap(char* gt) {
+    char* tmp = gt;
+    while (*tmp == '\0') tmp--;
+    for (; *tmp >= '0' && *tmp <= '9'; tmp--) { // reverse until beginning of GT field
+        *tmp = '\0';
+    }
+    *(tmp+1) = '.'; // set the missing '.' char
 }
 
 int main (int argc, char **argv) {
@@ -46,6 +73,8 @@ int main (int argc, char **argv) {
     float missfilter = args.missfilter;
     bool filterunk = args.filterunk;
     bool splitma = args.splitma;
+    bool makehap = args.makehap;
+    string hapidxfile = args.hapidxfile;
 
     cerr << "Args:" << endl;
     cerr << "  fpass:         " << fpass << endl;
@@ -57,6 +86,10 @@ int main (int argc, char **argv) {
     cerr << "  missfilter:    " << missfilter << endl;
     cerr << "  filterunknown: " << filterunk << endl;
     cerr << "  splitma:       " << splitma << endl;
+    cerr << "  makehap:       " << makehap;
+    if (makehap)
+        cerr << "\t" << hapidxfile;
+    cerr << endl;
 
     size_t len = BUFSIZE;
     const size_t lenstart = len;
@@ -65,6 +98,17 @@ int main (int argc, char **argv) {
     size_t nprint = 0;
     size_t nskip = 0;
     size_t nsplit = 0;
+    vector<bool> hapidxs(524288, false); // 512*1024 -> enough for UKB
+    size_t nhapconflicts_total = 0;
+
+    // for converting to haploid:
+    if (makehap) {
+        FILE* idxf = fopen(hapidxfile.c_str(), "r");
+        while(getline(&line, &len, idxf) != -1) {
+            hapidxs[atol(line)] = true; // mark those indices that should be made haploid
+        }
+        fclose(idxf);
+    }
 
     // parse header
     size_t nh = getline(&line, &len, stdin); // read header line
@@ -169,6 +213,7 @@ int main (int argc, char **argv) {
             for (size_t i = 0; i < nalt; i++)
                 ac[i] = 0;
             size_t an = 0;
+            size_t nhap = 0; // number of haps incl. missing -> for diploids = number of samples * 2
 
             // qual field
             char* qual = altallend+1; // start
@@ -234,7 +279,7 @@ int main (int argc, char **argv) {
             // genotypes
             char* gtstart = infoend+1; // start of genotypes (pointing at first gt char!)
             vector<char*> magts; // for MA splits, the beginning of the genotypes
-            vector<vector<char*>> magtparts;  // for MA splits and large allele indices we need to replace more than one digit. we replace them with '\0' with this vector pointing to all replaced positions plus one (so the next part to print)
+            vector<vector<char*>> gtparts;  // for MA splits and large allele indices or conversion to hap, we need to replace characters. we replace them with '\0' with this vector pointing to all replaced positions plus one (so the next part to print)
             if (masplitnow) {
                 // copy gts for the multi-allelic splits (including null terminator!)
                 size_t gtsize = (line + nline) - gtstart + 1;
@@ -246,19 +291,28 @@ int main (int argc, char **argv) {
                         memcpy(magts[a], gtstart, gtsize * sizeof(char));
                     }
                 }
-                if (nalt >= 10) {
-                    magtparts.resize(nalt); // we need one for each alt allele!
-                }
             }
-            int gtflag = 1; // signalizes if the current field contains genotypes or not
+            if (makehap)
+                gtparts.resize(masplitnow ? nalt : 1); // we need at least one parts vector if we convert to haploid
+            else if (masplitnow && nalt >= 10) { // if we split and need to delete chars due to allele indices with more than one digit
+                gtparts.resize(nalt); // we need one for each alt allele!
+            }
+            bool gtflag = true; // signalizes if the current field contains genotypes or not
+            size_t gtidx = 0; // current genotype (sample) idx
+            size_t hap = 0; // store last hap -> to check if conversion to haploid is ok
+            bool hapflag = false; // indicator flag for diploids: false = first, true = second
             size_t ngtmiss = 0; // missing alleles counter
+            size_t nhapconflicts = 0;
             for (char* gt = gtstart; *gt != '\0'; gt++) { // until the end of the line buffer
 
                 if (gtflag && *gt >= '0' && *gt <= '9') { // points to valid haplotype
-                    an++; // increase allele number
+                    if (!hapflag || !hapidxs[gtidx]) { // hapflag is always false if !makehap
+                        an++; // increase allele number only if it's the first haplotype or if we are not converting this gt to haploid
+                        nhap++;
+                    }
+                    size_t idx = *gt - '0';
                     if (*gt >= '1') {
                         size_t gtpos = gt - gtstart;
-                        size_t idx = *gt - '0';
                         while (*(gt+1) >= '0' && *(gt+1) <= '9') { // continue digit by digit
                             gt++;
                             idx = idx * 10 + (*gt - '0');
@@ -266,17 +320,19 @@ int main (int argc, char **argv) {
                                 // allele index is >= 10, so we need to delete all digits after the first (replace with \0, but we store the following position for printing later)
                                 // we take care of the first digit later
                                 *gt = '\0';
-                                magtparts[0].push_back(gt+1);
+                                gtparts[0].push_back(gt+1);
                                 size_t pos = gt - gtstart;
                                 for (size_t a = 1; a < nalt; a++) {
                                     if (!maaltfilter[a]) {
                                         *(magts[a]+pos) = '\0';
-                                        magtparts[a].push_back(magts[a]+pos+1);
+                                        gtparts[a].push_back(magts[a]+pos+1);
                                     }
                                 }
                             }
                         }
-                        ac[idx-1]++; // increase corresponding alt allele counter
+                        if (!hapflag || !hapidxs[gtidx]) {
+                            ac[idx-1]++; // increase corresponding alt allele counter only if ... see allele number
+                        }
                         if (masplitnow) {
                             // set current allele to '1' and all others to '0'
                             for (size_t a = 0; a < nalt; a++) {
@@ -289,19 +345,77 @@ int main (int argc, char **argv) {
                             }
                         }
                     }
+                    if (makehap && hapidxs[gtidx]) { // convert this genotype to haploid
+                        if (!hapflag) { // first: store current hap for a check
+                            hap = idx;
+                        } else { // second -> delete
+                            bool setmissing = false;
+                            if (hap != idx) { // check if this equals the first, otherwise: conflict and set missing
+                                nhapconflicts++;
+                                // correct counters
+                                an--;
+                                if (hap) ac[hap-1]--;
+                                // set missing
+                                ngtmiss++;
+                                setmissing = true;
+                            }
+                            // delete second hap
+                            // store following position for printing (if not already done by splitting an MA)
+                            if (gtparts[0].empty() || gtparts[0].back() != gt+1) // never insert twice!
+                                gtparts[0].push_back(gt+1);
+                            char* tmp = delete2ndhap(gt); // returns position to last deleted char
+                            if (setmissing) {
+                                setmissinghap(tmp-1);
+                            }
+                            if (masplitnow) { // also for split MA's
+                                size_t pos = gt - gtstart;
+                                for (size_t a = 1; a < nalt; a++) {
+                                    if (!maaltfilter[a]) {
+//                                        if (*gt != '\0')
+                                        if (gtparts[a].empty() || gtparts[a].back() != magts[a]+pos+1) // never insert twice!
+                                            gtparts[a].push_back(magts[a]+pos+1);
+                                        tmp = delete2ndhap(magts[a]+pos);
+                                        if (setmissing) {
+                                            setmissinghap(tmp-1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else if (gtflag && *gt == '.') { // missing gt
-                    ngtmiss++;
+                    if (!hapflag || !hapidxs[gtidx]) {
+                        ngtmiss++;
+                        nhap++; // also count missings here
+                    } else {
+                        // need to delete "/." due to conversion to haploid
+                        gtparts[0].push_back(gt+1);
+                        delete2ndhap(gt);
+                        if (masplitnow) { // also for split MA's
+                            size_t pos = gt - gtstart;
+                            for (size_t a = 1; a < nalt; a++) {
+                                if (!maaltfilter[a]) {
+                                    gtparts[a].push_back(magts[a]+pos+1);
+                                    delete2ndhap(magts[a]+pos);
+                                }
+                            }
+                        }
+                    }
                 } else if (*gt == ':') { // double colon marks the end of a genotype
                     gtflag = 0;
                 } else if (*gt == '\t') { // tab marks the end of a gt field
                     gtflag = 1;
+                    hapflag = false;
+                    gtidx++;
+                } else if (makehap && (*gt == '/' || *gt == '|') ) { // second hap (only mark if we want to convert to haploid)
+                    hapflag = true;
                 }
 
             }
 
             // GT missingness filter
             if (missfilter > 0) {
-                if (ngtmiss / (float) an >= missfilter) {
+                if (ngtmiss / (float) nhap >= missfilter) {
                     // skip this line
                     if (!masplitnow) {
                         nskip++;
@@ -420,13 +534,17 @@ int main (int argc, char **argv) {
                     // genotypes (all buffers end with newline!)
                     if (masplitnow) {
                         cout << magts[a];
-                        if (nalt >= 10) { // there were indices >= 10 which have been replaced by \0
-                            // print remaining parts after the replacement with \0
-                            for (char* p : magtparts[a])
-                                cout << p;
-                        }
+//                        if (nalt >= 10) { // there were indices >= 10 which have been replaced by \0
+//                            // print remaining parts after the replacement with \0
+//                            for (char* p : gtparts[a])
+//                                cout << p;
+//                        }
                     } else
                         cout << gtstart;
+                    if (!gtparts.empty()) { // there were characters deleted, either from multi-allelic splits with more than 10 alternative alleles, or from making haploid samples
+                        for (char* p : gtparts[a])
+                            cout << p;
+                    }
 
                     nprint++;
 
@@ -445,6 +563,8 @@ int main (int argc, char **argv) {
                 }
             }
 
+            nhapconflicts_total += nhapconflicts;
+
         }
 
         cout << flush;
@@ -460,6 +580,9 @@ int main (int argc, char **argv) {
     if (len != lenstart)
         cerr << " -> changed!!";
     cerr << endl;
+    if (nhapconflicts_total) {
+        cerr << "Conversion to haploid encountered conflicts: " << nhapconflicts_total << endl;
+    }
 
     free(line);
 

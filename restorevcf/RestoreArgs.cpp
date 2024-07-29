@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <string>
 
 #include <boost/program_options.hpp>
 
@@ -120,6 +121,7 @@ RestoreArgs::RestoreArgs(int argc, char *argv[]) :
     ("missfilter", value<float>(&missfilter)->default_value(0.0), "only variants with a genotype missingness rate < value are returned")
     ("filterunknown", "removes unknown alleles (named \"*\")")
     ("splitma", "splits multi-allelic variants into several bi-allelic ones, filling up with the reference '0'. Note, that this implies --rminfo.")
+    ("makehap", value<string>(&hapidxfile), "file with indices of sample columns (starting with 0) which should be made haploid during restoring")
     ;
 
     opts_hidden.add_options()
@@ -163,6 +165,8 @@ void RestoreArgs::parseVars() {
     // if we do not remove INFO, disable explicit keep of AAScore
     if (!rminfo)
         keepaa = false;
+    if (vars.count("makehap") && !hapidxfile.empty())
+        makehap = true;
 
 }
 

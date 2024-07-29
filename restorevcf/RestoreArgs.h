@@ -71,6 +71,8 @@ public:
     float missfilter = 0;
     bool filterunk = false;
     bool splitma = false;
+    bool makehap = false;
+    string hapidxfile;
 
     bool debug = false;
 
