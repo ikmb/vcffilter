@@ -34,7 +34,7 @@ You might want to compress the information after extraction again, which you cou
 #### Example:
 
 ```
-zcat input.vcf.gz | vcffilter | gzip -c compressed_extraction.gz
+zcat input.vcf.gz | vcffilter | gzip -c > compressed_extraction.gz
 ```
 
 Note, that *vcffilter* prints some additional information to *stderr* during the run.
@@ -58,7 +58,7 @@ If you want to extract a header from a VCF file, you could use `bcftools view -h
 #### Example:
 
 ```
-zcat header.vcf compressed_extraction.gz | restorevcf | bgzip restored.vcf.gz
+zcat header.vcf compressed_extraction.gz | restorevcf | bgzip -c > restored.vcf.gz
 ```
 
 Note the use of *bgzip* instead of *gzip* as valid VCF files need to be able to be indexed, which is not possible using *gzip*.
@@ -91,7 +91,7 @@ Here is an excerpt of the most important filters:
 The following command restores a VCF with on-the-fly filtering for `PASS` in the `FILTER` column, a missingness rate below 0.1, an `AAScore` >= 0.8 and a MAC >= 4, removal of unknown alleles and splitting of multi-allelic variants to bi-allelics (which implies the removal of all `INFO` fields besides `AF`, `AC` and `AN`, but also keeps `AAScore` due to the `--keepaa` switch).
 
 ```
-zcat header.vcf compressed_extraction.gz | restorevcf --fpass --missfilter 0.1 --aafilter 0.8 --macfilter 4 --filterunknown --splitma --keepaa | bgzip restored.vcf.gz
+zcat header.vcf compressed_extraction.gz | restorevcf --fpass --missfilter 0.1 --aafilter 0.8 --macfilter 4 --filterunknown --splitma --keepaa | bgzip -c > restored.vcf.gz
 ```
 
 ## myzcat
