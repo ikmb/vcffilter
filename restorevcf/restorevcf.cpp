@@ -1,8 +1,21 @@
 /*
- * restorevcf.c
+ *    Copyright (C) 2024 by Lars Wienbrandt,
+ *    Institute of Clinical Molecular Biology, Kiel University
  *
- *  Created on: May 15, 2024
- *      Author: lwienbrandt
+ *    This file is part of Vcffilter.
+ *
+ *    Vcffilter is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    Vcffilter is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU General Public License for more details.
+ *
+ *    You should have received a copy of the GNU General Public License
+ *    along with Vcffilter. If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include <iostream>
@@ -15,6 +28,7 @@
 
 #include "RestoreArgs.h"
 
+// large buffer
 #define BUFSIZE 1073741824
 
 using namespace std;
