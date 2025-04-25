@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2024 by Lars Wienbrandt,
+ *    Copyright (C) 2025 by Lars Wienbrandt,
  *    Institute of Clinical Molecular Biology, Kiel University
  *
  *    This file is part of Vcffilter.
@@ -18,8 +18,8 @@
  *    along with Vcffilter. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef RESTOREARGS_H_
-#define RESTOREARGS_H_
+#ifndef REMOVEARGS_H_
+#define REMOVEARGS_H_
 
 #include <string>
 #include <vector>
@@ -33,10 +33,10 @@ using namespace std;
 /**
  * Class for storing and retrieving command-line arguments.
  */
-class RestoreArgs {
+class RemoveArgs {
 public:
 
-	static RestoreArgs parseArgs(int argc, char *argv[]);
+    static RemoveArgs parseArgs(int argc, char *argv[]);
 
     /**
      * Returns the argument with the given (long) name. The template argument
@@ -79,27 +79,20 @@ public:
     void printHelp(const std::string &progname, std::ostream &out) const;
     static void printVersion(std::ostream &out);
 
-    RestoreArgs(RestoreArgs&& other) = default;
+    RemoveArgs(RemoveArgs&& other) = default;
 
-    bool fpass = false;
-    bool rminfo = false;
-    bool keepaa = false;
     size_t macfilter = 0;
     float maffilter = 0;
-    float aafilter = 0;
     float missfilter = 0;
-    bool filterunk = false;
-    bool splitma = false;
-    bool makehap = false;
-    string hapidxfile;
+    string skipidfilename;
 
     bool debug = false;
 
 protected:
     /** Constructs the arguments list and adds all defined options */
-    RestoreArgs();
-    RestoreArgs(RestoreArgs const &);
-    void operator=(RestoreArgs const &);
+    RemoveArgs();
+    RemoveArgs(RemoveArgs const &);
+    void operator=(RemoveArgs const &);
 
     void parse(int argc, char *argv[]);
     void parseVars();
@@ -107,16 +100,17 @@ protected:
 
     bpo::options_description opts_regular;        /**< regular options, shown on help output */
     bpo::options_description opts_hidden;         /**< hidden options */
+    bpo::positional_options_description opts_positional;    /**< positional options (without name) */
 
     bpo::variables_map vars;    /**< this is where the option values go */
 
     /** dump all options to the given stream */
-    friend std::ostream &operator<<(std::ostream &out, const RestoreArgs &args);
+    friend std::ostream &operator<<(std::ostream &out, const RemoveArgs &args);
 
 private:
     /** parses the main() options into the variable map */
-    RestoreArgs(int argc, char *argv[]);
+    RemoveArgs(int argc, char *argv[]);
 
 };
 
-#endif /* RESTOREARGS_H_ */
+#endif /* REMOVEARGS_H_ */

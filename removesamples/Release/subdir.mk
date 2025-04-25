@@ -4,12 +4,15 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
+../RemoveArgs.cpp \
 ../removesamples.cpp 
 
 CPP_DEPS += \
+./RemoveArgs.d \
 ./removesamples.d 
 
 OBJS += \
+./RemoveArgs.o \
 ./removesamples.o 
 
 
@@ -25,7 +28,7 @@ OBJS += \
 clean: clean--2e-
 
 clean--2e-:
-	-$(RM) ./removesamples.d ./removesamples.o
+	-$(RM) ./RemoveArgs.d ./RemoveArgs.o ./removesamples.d ./removesamples.o
 
 .PHONY: clean--2e-
 

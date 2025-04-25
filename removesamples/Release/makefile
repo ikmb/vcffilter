@@ -58,7 +58,7 @@ main-build: removesamples
 removesamples: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C++ Linker'
-	g++  -o "removesamples" $(OBJS) $(USER_OBJS) $(LIBS)
+	g++  -o "removesamples" $(OBJS) $(USER_OBJS) $(LIBS) -lboost_program_options
 	@echo 'Finished building target: $@'
 	@echo ' '
 

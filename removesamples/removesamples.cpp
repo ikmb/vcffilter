@@ -27,6 +27,8 @@
 #include <cstring>
 #include <cmath>
 
+#include "RemoveArgs.h"
+
 // large buffer
 #define BUFSIZE 1073741824
 
@@ -34,17 +36,28 @@ using namespace std;
 
 int main (int argc, char **argv) {
 
-    FILE* skipidfile = argc < 2 ? NULL : fopen(argv[1], "r");
+    // parse args
+    RemoveArgs args = RemoveArgs::parseArgs(argc, argv);
+
+    string skipidfilename = args.skipidfilename;
+    size_t macfilter = args.macfilter;
+    float maffilter = args.maffilter;
+    float missfilter = args.missfilter;
+
+    cerr << "Args:" << endl;
+    cerr << "  skip ID file:  " << skipidfilename << endl;
+    cerr << "  macfilter:     " << macfilter << endl;
+    cerr << "  maffilter:     " << maffilter << endl;
+    cerr << "  missfilter:    " << missfilter << endl;
+    cerr << endl;
+
+
+    FILE* skipidfile = fopen(args.skipidfilename.c_str(), "r");
 
     // print usage
     if (!skipidfile) {
-        cerr << "Usage: " << argv[0] << " <samplefile>" << endl;
-        cerr << " Please provide a filename with sample IDs to be removed.\n";
-        cerr << " The tool reads a VCF file stream from stdin and produces a VCF file stream without the samples in the provided file to stdout.\n";
-        cerr << " The tool also skips all information in the INFO column, but recalculates and sets allele count (AC) and allele number (AN) appropriately.\n";
-        cerr << " Further, genotypes (GT) are expected to be the first entry in each sample column. Here, all information is kept." << endl;
-        cerr << " Multi-allelics are not supported. All alleles differing from '0' are counted for AC." << endl;
-        cerr << " Information will be printed to stderr." << endl;
+        cerr << " Unable to open file " << skipidfilename << endl;
+        cerr << " Please provide a valid file with sample IDs to be removed.\n";
         exit(EXIT_FAILURE);
     }
 
@@ -55,6 +68,7 @@ int main (int argc, char **argv) {
 
     size_t nvars = 0;
     size_t nsamples = 0;
+    size_t nskip = 0;
 
     size_t nh = getline(&line, &len, stdin); // read first line
     if (nh > 0 && nh != (size_t)-1) { // contains data
@@ -145,12 +159,13 @@ int main (int argc, char **argv) {
         cerr << "Processing..." << endl;
 
         vector<pair<char*,char*>> outptrs;
-        outptrs.reserve(skipidxs.size()+2);
+        outptrs.reserve(skipidxs.size()+3); // all sample blocks around the skipped samples + fields before INFO + FORMAT field after INFO
         ssize_t nline = 0;
         while((nline = getline(&line, &len, stdin)) != -1) {
 
             size_t ac = 0;
             size_t an = 0;
+            size_t missc = 0;
 
             nvars++;
             outptrs.clear();
@@ -162,7 +177,7 @@ int main (int argc, char **argv) {
                 s = strchr(s+1, '\t');
             }
             s++; // points to beginning of INFO column now
-            cout << string(line, s-line); // prints the beginning until INFO including tab character
+            outptrs.emplace_back(line, s); // will print the beginning until INFO including tab character at end
 
 //            // DEBUG
 //            cerr << string(line, s-line);
@@ -207,7 +222,8 @@ int main (int argc, char **argv) {
                         if (*sc != '0')
                             ac++;
                         an++;
-                    }
+                    } else
+                        missc++;
 
                     // diploid and phased?
                     char* sc2 = strchr(sc, '|');
@@ -216,8 +232,9 @@ int main (int argc, char **argv) {
                         if (*sc2 != '.') {
                             if (*sc2 != '0')
                                 ac++;
-                            an++;
-                        }
+                        } else
+                            missc++;
+                        an++;
                     } else { // not found -> search for unphased
                         sc2 = strchr(sc, '/');
                         if (sc2) { // found -> count
@@ -225,8 +242,9 @@ int main (int argc, char **argv) {
                             if (*sc2 != '.') {
                                 if (*sc2 != '0')
                                     ac++;
-                                an++;
-                            }
+                            } else
+                                missc++;
+                            an++;
                         }
                     }
 
@@ -260,15 +278,36 @@ int main (int argc, char **argv) {
 
             } // END while (s < lineend)
 
-            // print INFO field now
-            cout << "AC=" << ac << ";AN=" << an;
+            // apply filters
+            bool pass = true;
+            if (macfilter && ac < macfilter)
+                pass = false;
+            if (maffilter && ((float)ac)/an < maffilter)
+                pass = false;
+            if (missfilter && ((float)missc)/an >= missfilter)
+                pass = false;
 
-//            // DEBUG
-//            cerr << "AC=" << ac << ";AN=" << an << endl;
+            // print if filters passed
+            if (pass) {
 
-            // print all blocks (all blocks should begin with a tab, the last block should contain the newline character)
-            for (const auto &p : outptrs)
-                cout << string(p.first, p.second - p.first);
+                auto outit = outptrs.cbegin();
+
+                // print first fields (before INFO, block already contains the tab character at the end)
+                cout << string(outit->first, outit->second - outit->first);
+                outit++;
+
+                // print INFO field now
+                cout << "AC=" << ac << ";AN=" << an;
+
+    //            // DEBUG
+    //            cerr << "AC=" << ac << ";AN=" << an << endl;
+
+                // print all remaining blocks (all blocks should begin with a tab, the last block should contain the newline character)
+                for (; outit != outptrs.cend(); ++outit)
+                    cout << string(outit->first, outit->second - outit->first);
+
+            } else // if (!pass)
+                nskip++;
 
         }
 
@@ -276,7 +315,9 @@ int main (int argc, char **argv) {
 
     } // END contains data
 
-    cerr << "Number of processed variants: " << nvars << endl;
+    cerr << "Number of processed variants:             " << nvars << endl;
+    cerr << " Of these skipped due to applied filters: " << nskip << endl;
+    cerr << " Total variants in output:                " << nvars - nskip << endl;
 
     free(line);
 
