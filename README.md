@@ -99,6 +99,31 @@ cat header.vcf uncompressed_extraction |  bgzip -c > restored.vcf.gz
 rm uncompressed_extraction
 ```
 
+## removesamples
+
+*removesamples* requires a file as argument that contains the IDs of samples (one exclusively in each line). *removesamples* reads an uncompressed VCF file from *stdin* and writes uncompressed VCF to *stdout*, the samples in the input file are removed during this process (if they are found). 
+Informational, warning and error messages are written to *stderr*.
+
+**Note:** *removesamples* removes all information from the *INFO* column. However, it recalculates and sets the tags for *AC (allele count)* and *AN (allele number)*. Note, that multi-allelics are probably not counted correctly as *AC* reflects the number of known (i.e. not missing) non-zero alleles. Unknown (i.e. missing) alleles are still counted for *AN*.
+
+**Note:** Further note, that *removesamples* requires the *genotype (GT)* to be the first field in each sample column (which is the usual case). The *FORMAT* column will not be checked.
+
+#### Optional filters:
+
+- `--macfilter` keeps only variants with a minor allele count greater or equal the provided number
+- `--maffilter` keeps only variants with a minor allele frequency greater or equal the provided number
+- `--missfilter` keeps only variants with a missingness rate below the provided number
+
+#### Example:
+
+*removesamples* is much faster than applying *bcftools* with the *-S* option, followed by the *bcftools +fill-tags* plugin and a final *bcftools filter* call. However, compression and decompression will quickly become the bottleneck (which is again slow in *bcftools*). Thus, I recommend to use the *vcf.gz* format for VCF input and output and use the *bgzip* tool with the *--threads* option for compression and decompression:
+
+```
+bgzip -d -c --threads 4 input.vcf.gz | \
+  removesamples my_exclude_samples_file --macfilter 4 --missfilter 0.1 | \
+  bgzip --threads 4 > output.vcf.gz
+```
+
 ## myzcat
 
-*myzcat* can be used to replace *zcat*. It might be a little bit faster than the original *zcat* as it pre-allocates a large buffer of 1 GB for unpacking at the beginning, which *zcat* usually doesn't do.
+*myzcat* can be used to replace *zcat*. It might be a little bit faster than the original *zcat* as it pre-allocates a large buffer of 1 GB for unpacking at the beginning, what *zcat* usually doesn't do. However, using *bgzip* with *--threads* might still be faster when in a multi-threaded environment.
