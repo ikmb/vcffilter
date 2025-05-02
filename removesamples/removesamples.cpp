@@ -168,6 +168,9 @@ int main (int argc, char **argv) {
             size_t missc = 0;
 
             nvars++;
+            if (nvars % 10000 == 0)
+                cerr << "  " << nvars << " variants..." << endl;
+
             outptrs.clear();
             char* lineend = line + nline; // points to the end of the line (after the newline character)
 
@@ -309,7 +312,7 @@ int main (int argc, char **argv) {
             } else // if (!pass)
                 nskip++;
 
-        }
+        } // END while(getline)
 
         cout << flush;
 
